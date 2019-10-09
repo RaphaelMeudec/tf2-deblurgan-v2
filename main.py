@@ -6,6 +6,21 @@ import tensorflow as tf
 print(tf.__version__)
 
 BATCH_SIZE = 4
+PATCH_SIZE = (64, 64)
+
+
+def select_patch(sharp, blur, patch_size_x, patch_size_y):
+    offset_height = 1
+    offset_width = 1
+    return (
+        tf.image.crop_to_bounding_box(
+            sharp, offset_height, offset_width, patch_size_x, patch_size_y
+        ),
+        tf.image.crop_to_bounding_box(
+            blur, offset_height, offset_width, patch_size_x, patch_size_y
+        ),
+    )
+
 
 dataset_path = Path("datasets") / "gopro"
 train_dataset_path = dataset_path / "train"
@@ -37,6 +52,11 @@ train_dataset = (
             tf.image.convert_image_dtype(blur_image, tf.float32),
         )
     )
+    .map(  # Select subset of the image
+        lambda sharp_image, blur_image: select_patch(
+            sharp_image, blur_image, PATCH_SIZE[0], PATCH_SIZE[1]
+        )
+    )
 )
 train_dataset = train_dataset.cache()
 train_dataset = train_dataset.repeat()
@@ -44,8 +64,6 @@ train_dataset = train_dataset.shuffle(buffer_size=100)
 train_dataset = train_dataset.batch(BATCH_SIZE)
 train_dataset = train_dataset.prefetch(buffer_size=BATCH_SIZE // 2)
 
-
 for images in train_dataset:
-    print(len(images))
     print(images[0].shape)
     break
