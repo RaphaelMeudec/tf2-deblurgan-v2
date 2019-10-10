@@ -66,6 +66,12 @@ train_dataset = train_dataset.prefetch(buffer_size=BATCH_SIZE // 2)
 for sharps, blurs in train_dataset:
     sample_sharp, sample_blur = sharps[0], blurs[0]
 
-    cv2.imwrite("sample_blur.png", cv2.cvtColor((255 * sample_blur.numpy()).astype("uint8"), cv2.COLOR_RGB2BGR))
-    cv2.imwrite("sample_sharp.png", cv2.cvtColor((255 * sample_sharp.numpy()).astype("uint8"), cv2.COLOR_RGB2BGR))
+    cv2.imwrite(
+        "sample_blur.png",
+        cv2.cvtColor((255 * sample_blur.numpy()).astype("uint8"), cv2.COLOR_RGB2BGR),
+    )
+    cv2.imwrite(
+        "sample_sharp.png",
+        cv2.cvtColor((255 * sample_sharp.numpy()).astype("uint8"), cv2.COLOR_RGB2BGR),
+    )
     break
