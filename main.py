@@ -1,12 +1,11 @@
 from pathlib import Path
 
+import cv2
 import tensorflow as tf
-
-
 print(tf.__version__)
 
 BATCH_SIZE = 4
-PATCH_SIZE = (64, 64)
+PATCH_SIZE = (256, 256)
 
 
 def select_patch(sharp, blur, patch_size_x, patch_size_y):
@@ -64,6 +63,9 @@ train_dataset = train_dataset.shuffle(buffer_size=100)
 train_dataset = train_dataset.batch(BATCH_SIZE)
 train_dataset = train_dataset.prefetch(buffer_size=BATCH_SIZE // 2)
 
-for images in train_dataset:
-    print(images[0].shape)
+for sharps, blurs in train_dataset:
+    sample_sharp, sample_blur = sharps[0], blurs[0]
+
+    cv2.imwrite("sample_blur.png", cv2.cvtColor((255 * sample_blur.numpy()).astype("uint8"), cv2.COLOR_RGB2BGR))
+    cv2.imwrite("sample_sharp.png", cv2.cvtColor((255 * sample_sharp.numpy()).astype("uint8"), cv2.COLOR_RGB2BGR))
     break
