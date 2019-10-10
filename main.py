@@ -30,24 +30,31 @@ class Trainer:
             if index > num_batch:
                 break
 
-            loss = self.training_loop(sharp_images, blur_images)
-            print(loss)
+            generator_loss, discriminator_loss = self.training_loop(sharp_images, blur_images)
+            print(generator_loss.numpy(), discriminator_loss.numpy())
 
     @tf.function
     def training_loop(self, sharp_images, blur_images):
-        with tf.GradientTape() as tape:
+        with tf.GradientTape() as generator_tape, tf.GradientTape() as discriminator_tape:
             blurred = tf.cast(blur_images, tf.float32)
             sharp = tf.cast(sharp_images, tf.float32)
 
             deblurred = self.generator(blurred, training=True)
 
-            loss = tf.reduce_sum(tf.abs(deblurred - sharp))
+            discriminated_deblurred = self.discriminator(deblurred, training=True)
+            discriminated_sharp = self.discriminator(sharp_images, training=True)
 
-        grads = tape.gradient(loss, self.generator.trainable_weights)
+            # TODO: Specify correct losses
+            generator_loss = tf.reduce_sum(tf.abs(deblurred - sharp))
+            discriminator_loss = tf.reduce_sum(tf.abs(discriminated_deblurred)) - tf.reduce_sum(tf.abs(discriminated_sharp))
 
-        self.generator_optimizer.apply_gradients(zip(grads, self.generator.trainable_weights))
+        generator_grads = generator_tape.gradient(generator_loss, self.generator.trainable_weights)
+        self.generator_optimizer.apply_gradients(zip(generator_grads, self.generator.trainable_weights))
 
-        return loss
+        discriminator_grads = discriminator_tape.gradient(discriminator_loss, self.discriminator.trainable_weights)
+        self.discriminator_optimizer.apply_gradients(zip(discriminator_grads, self.discriminator.trainable_weights))
+
+        return generator_loss, discriminator_loss
 
 
 if __name__ == "__main__":
