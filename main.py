@@ -33,6 +33,7 @@ class Trainer:
             generator_loss, discriminator_loss = self.training_loop(
                 sharp_images, blur_images
             )
+            # TODO: Add callbacks
             print(generator_loss.numpy(), discriminator_loss.numpy())
 
     @tf.function
