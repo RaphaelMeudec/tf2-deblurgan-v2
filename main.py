@@ -21,6 +21,7 @@ class Trainer:
         self.generator = load_generator(input_shape)
         self.generator(tf.zeros((1, *input_shape)))
         self.generator.summary()
+
         self.discriminator = load_discriminator(input_shape)
         self.discriminator(tf.zeros((1, *input_shape)))
         self.discriminator.summary()
