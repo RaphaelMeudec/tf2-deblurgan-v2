@@ -1,29 +1,331 @@
 import tensorflow as tf
 
 
-def load_generator(input_shape):
-    return tf.keras.Sequential(
-        [
-            tf.keras.layers.Conv2D(
-                16, 3, padding="same", activation="relu", input_shape=input_shape
-            ),
-            tf.keras.layers.Conv2D(3, 3, padding="same", activation="relu"),
-        ]
-    )
+class Conv2DBatchNormReLU(tf.keras.Model):
+    def __init__(self, num_filters, kernel_size, padding, strides=(1, 1), **kwargs):
+        super(Conv2DBatchNormReLU, self).__init__(**kwargs)
+        self.conv = tf.keras.layers.Conv2D(
+            num_filters,
+            kernel_size=kernel_size,
+            strides=strides,
+            padding=padding,
+            use_bias=False,
+        )
+        self.batch_norm = tf.keras.layers.BatchNormalization()
+        self.activation = tf.keras.layers.ReLU()
+
+    def call(self, x, training=False):
+        x = self.conv(x)
+        x = self.batch_norm(x, training=training)
+        output = self.activation(x)
+        return output
 
 
-def load_discriminator(input_shape):
-    return tf.keras.Sequential(
-        [
-            tf.keras.layers.Conv2D(
-                16, 3, padding="same", activation="relu", input_shape=input_shape
-            ),
-            tf.keras.layers.MaxPooling2D(),
-            tf.keras.layers.Conv2D(16, 3, padding="same", activation="relu"),
-            tf.keras.layers.MaxPooling2D(),
-            tf.keras.layers.Conv2D(16, 3, padding="same", activation="relu"),
-            tf.keras.layers.MaxPooling2D(),
-            tf.keras.layers.Flatten(),
-            tf.keras.layers.Dense(2, activation="softmax"),
-        ]
-    )
+class FPNHead(tf.keras.Model):
+    def __init__(self, num_filters, num_output, **kwargs):
+        super(FPNHead, self).__init__(**kwargs)
+
+        self.conv_1 = tf.keras.layers.Conv2D(
+            num_filters, kernel_size=(3, 3), padding="same", use_bias=False
+        )
+        self.conv_2 = tf.keras.layers.Conv2D(
+            num_output, kernel_size=(3, 3), padding="same", use_bias=False
+        )
+
+    def call(self, x, training=False):
+        return self.conv_2(self.conv_1(x))
+
+
+class Block17(tf.keras.Model):
+    def __init__(self, scale=1.0, **kwargs):
+        super(Block17, self).__init__(**kwargs)
+
+        self.scale = scale
+
+        self.branch_0 = Conv2DBatchNormReLU(192, kernel_size=1, strides=1, padding="same")
+
+        self.branch_1 = tf.keras.Sequential(
+            [
+                Conv2DBatchNormReLU(128, kernel_size=1, strides=1, padding="same"),
+                Conv2DBatchNormReLU(160, kernel_size=(1, 7), strides=1, padding="same"),
+                Conv2DBatchNormReLU(192, kernel_size=(7, 1), strides=1, padding="same"),
+            ]
+        )
+
+        self.concat = tf.keras.layers.Concatenate()
+        self.conv = tf.keras.layers.Conv2D(
+            1088, kernel_size=(1, 1), strides=(1, 1), activation=None
+        )
+        self.relu = tf.keras.layers.ReLU()
+
+    def call(self, x, training=False):
+        out = self.concat([self.branch_0(x), self.branch_1(x)])
+        out = self.conv(out)
+        out = out * self.scale + x
+        out = self.relu(out)
+        return out
+
+
+class Block35(tf.keras.Model):
+    def __init__(self, scale=1.0, **kwargs):
+        super(Block35, self).__init__(**kwargs)
+
+        self.scale = scale
+
+        self.branch_0 = Conv2DBatchNormReLU(
+            num_filters=32, kernel_size=(1, 1), padding="same"
+        )
+
+        self.branch_1 = tf.keras.Sequential(
+            [
+                Conv2DBatchNormReLU(num_filters=32, kernel_size=1, padding="same"),
+                Conv2DBatchNormReLU(num_filters=32, kernel_size=3, padding="same"),
+            ]
+        )
+
+        self.branch_2 = tf.keras.Sequential(
+            [
+                Conv2DBatchNormReLU(num_filters=32, kernel_size=1, padding="same"),
+                Conv2DBatchNormReLU(num_filters=48, kernel_size=3, padding="same"),
+                Conv2DBatchNormReLU(num_filters=64, kernel_size=3, padding="same"),
+            ]
+        )
+
+        self.conv = tf.keras.layers.Conv2D(
+            320, kernel_size=1, strides=(1, 1), activation=None
+        )
+        self.relu = tf.keras.layers.ReLU()
+        self.concat = tf.keras.layers.Concatenate()
+
+    def call(self, x, training=False):
+        out = self.concat([self.branch_0(x), self.branch_1(x), self.branch_2(x)])
+        out = self.conv(out)
+        out = out * self.scale + x
+        out = self.relu(out)
+
+        return out
+
+
+class InceptionMixed5b(tf.keras.Model):
+    def __init__(self):
+        super(InceptionMixed5b, self).__init__()
+
+        self.branch_0 = Conv2DBatchNormReLU(
+            num_filters=96, kernel_size=(1, 1), padding="same"
+        )
+
+        self.branch_1 = tf.keras.Sequential(
+            [
+                Conv2DBatchNormReLU(num_filters=48, kernel_size=1, padding="same"),
+                Conv2DBatchNormReLU(num_filters=64, kernel_size=5, padding="same"),
+            ]
+        )
+
+        self.branch_2 = tf.keras.Sequential(
+            [
+                Conv2DBatchNormReLU(num_filters=64, kernel_size=1, padding="same"),
+                Conv2DBatchNormReLU(num_filters=96, kernel_size=3, padding="same"),
+                Conv2DBatchNormReLU(num_filters=96, kernel_size=3, padding="same"),
+            ]
+        )
+
+        self.branch_3 = tf.keras.Sequential(
+            [
+                tf.keras.layers.AveragePooling2D(
+                    pool_size=(3, 3), strides=1, padding="same"
+                ),
+                Conv2DBatchNormReLU(num_filters=64, kernel_size=1, padding="same"),
+            ]
+        )
+
+        self.concat = tf.keras.layers.Concatenate()
+
+    def call(self, x, training=False):
+        return self.concat(
+            [self.branch_0(x), self.branch_1(x), self.branch_2(x), self.branch_3(x)]
+        )
+
+
+class InceptionMixed6a(tf.keras.Model):
+    def __init__(self):
+        super(InceptionMixed6a, self).__init__()
+
+        self.branch_0 = Conv2DBatchNormReLU(
+            num_filters=384, kernel_size=(3, 3), strides=(2, 2), padding="valid"
+        )
+
+        self.branch_1 = tf.keras.Sequential(
+            [
+                Conv2DBatchNormReLU(num_filters=256, kernel_size=1, padding="valid"),
+                Conv2DBatchNormReLU(num_filters=256, kernel_size=3, padding="same"),
+                Conv2DBatchNormReLU(
+                    num_filters=384, kernel_size=3, strides=(2, 2), padding="valid"
+                ),
+            ]
+        )
+
+        self.branch_2 = tf.keras.layers.MaxPooling2D(pool_size=(3, 3), strides=(2, 2))
+
+        self.concat = tf.keras.layers.Concatenate()
+
+    def call(self, x, training=False):
+        return self.concat([self.branch_0(x), self.branch_1(x), self.branch_2(x)])
+
+
+class InceptionMixed7a(tf.keras.Model):
+    def __init__(self):
+        super(InceptionMixed7a, self).__init__()
+
+        self.branch_0 = tf.keras.Sequential(
+            [
+                Conv2DBatchNormReLU(
+                    num_filters=256, kernel_size=(1, 1), strides=(1, 1), padding="valid"
+                ),
+                Conv2DBatchNormReLU(
+                    num_filters=384, kernel_size=(3, 3), strides=(2, 2), padding="valid"
+                ),
+            ]
+        )
+        self.branch_1 = tf.keras.Sequential(
+            [
+                Conv2DBatchNormReLU(
+                    num_filters=256, kernel_size=(1, 1), strides=(1, 1), padding="valid"
+                ),
+                Conv2DBatchNormReLU(
+                    num_filters=288, kernel_size=(3, 3), strides=(2, 2), padding="valid"
+                ),
+            ]
+        )
+
+        self.branch_2 = tf.keras.Sequential(
+            [
+                Conv2DBatchNormReLU(num_filters=256, kernel_size=1, padding="same"),
+                Conv2DBatchNormReLU(
+                    num_filters=288, kernel_size=3, strides=(1, 1), padding="same"
+                ),
+                Conv2DBatchNormReLU(
+                    num_filters=320, kernel_size=3, strides=(2, 2), padding="valid"
+                ),
+            ]
+        )
+
+        self.branch_3 = tf.keras.layers.MaxPooling2D(pool_size=(3, 3), strides=(2, 2))
+
+        self.concat = tf.keras.layers.Concatenate()
+
+    def call(self, x, training=False):
+        return self.concat(
+            [self.branch_0(x), self.branch_1(x), self.branch_2(x), self.branch_3(x)]
+        )
+
+
+class FPNInception(tf.keras.Model):
+    def __init__(self, input_shape, num_filters):
+        super(FPNInception, self).__init__()
+        self.shape = input_shape
+
+        self.encoder_0 = Conv2DBatchNormReLU(
+            32, kernel_size=(3, 3), strides=2, padding="valid", name="encoder_0"
+        )
+        self.encoder_1 = tf.keras.Sequential(
+            [
+                Conv2DBatchNormReLU(32, kernel_size=(3, 3), padding="valid"),
+                Conv2DBatchNormReLU(64, kernel_size=(3, 3), padding="same"),
+                tf.keras.layers.MaxPooling2D(pool_size=3, strides=2),
+            ],
+            name="encoder_1",
+        )
+        self.encoder_2 = tf.keras.Sequential(
+            [
+                Conv2DBatchNormReLU(80, kernel_size=(1, 1), padding="valid"),
+                Conv2DBatchNormReLU(192, kernel_size=(3, 3), padding="valid"),
+                tf.keras.layers.MaxPooling2D(pool_size=3, strides=2),
+            ],
+            name="encoder_2",
+        )
+        self.encoder_3 = tf.keras.Sequential(
+            [InceptionMixed5b()] + 10 * [Block35(scale=0.17)] + [InceptionMixed6a()],
+            name="encoder_3",
+        )
+        self.encoder_4 = tf.keras.Sequential(
+            [Block17(scale=0.10)] * 17 + [InceptionMixed7a()]
+        )
+
+        self.td_1 = tf.keras.Sequential(
+            [
+                tf.keras.layers.Conv2D(num_filters, kernel_size=(3, 3), padding="same"),
+                tf.keras.layers.BatchNormalization(),
+                tf.keras.layers.ReLU(),
+            ],
+            name="td_1",
+        )
+        self.td_2 = tf.keras.Sequential(
+            [
+                tf.keras.layers.Conv2D(num_filters, kernel_size=(3, 3), padding="same"),
+                tf.keras.layers.BatchNormalization(),
+                tf.keras.layers.ReLU(),
+            ],
+            name="td_2",
+        )
+        self.td_3 = tf.keras.Sequential(
+            [
+                tf.keras.layers.Conv2D(num_filters, kernel_size=(3, 3), padding="same"),
+                tf.keras.layers.BatchNormalization(),
+                tf.keras.layers.ReLU(),
+            ],
+            name="td_3",
+        )
+
+        self.lateral_0 = tf.keras.layers.Conv2D(
+            num_filters // 2, kernel_size=1, use_bias=False, name="lateral_0"
+        )
+        self.lateral_1 = tf.keras.layers.Conv2D(
+            num_filters, kernel_size=1, use_bias=False, name="lateral_1"
+        )
+        self.lateral_2 = tf.keras.layers.Conv2D(
+            num_filters, kernel_size=1, use_bias=False, name="lateral_2"
+        )
+        self.lateral_3 = tf.keras.layers.Conv2D(
+            num_filters, kernel_size=1, use_bias=False, name="lateral_3"
+        )
+        self.lateral_4 = tf.keras.layers.Conv2D(
+            num_filters, kernel_size=1, use_bias=False, name="lateral_4"
+        )
+
+        self.upsample = tf.keras.layers.UpSampling2D(size=(2, 2))
+
+    def call(self, x, training=False):
+        print(x.shape)
+        encoded_0 = self.encoder_0(x)
+        encoded_1 = self.encoder_1(encoded_0)
+        encoded_2 = self.encoder_2(encoded_1)
+        encoded_3 = self.encoder_3(encoded_2)
+        encoded_4 = self.encoder_4(encoded_3)
+
+        lateraled_0 = self.lateral_0(encoded_0)
+        lateraled_1 = tf.pad(self.lateral_1(encoded_1), tf.constant([[0, 0], [1, 1], [1, 1], [0, 0]]), "REFLECT")
+        lateraled_2 = self.lateral_2(encoded_2)
+        lateraled_3 = tf.pad(self.lateral_3(encoded_3), tf.constant([[0, 0], [1, 1], [1, 1], [0, 0]]), "REFLECT")
+        lateraled_4 = tf.pad(self.lateral_4(encoded_4), tf.constant([[0, 0], [1, 1], [1, 1], [0, 0]]), "REFLECT")
+
+        map_4 = lateraled_4
+        map_3 = self.td_1(lateraled_3 + self.upsample(map_4))
+        map_2 = self.td_2(
+            tf.pad(lateraled_2, tf.constant([[0, 0], [1, 2], [1, 2], [0, 0]]), "reflect")
+            + self.upsample(map_3)
+        )
+        map_1 = self.td_3(
+            lateraled_1 + self.upsample(map_2)
+        )
+        map_0 = tf.pad(lateraled_0, tf.constant([[0, 0], [0, 1], [0, 1], [0, 0]]), "reflect")
+
+        return map_0, map_1, map_2, map_3, map_4
+
+    def model(self):
+        x = tf.keras.Input(shape=self.shape)
+        return tf.keras.Model(inputs=[x], outputs=self.call(x))
+
+
+if __name__ == "__main__":
+    model = FPNInception((512, 512, 3), num_filters=256)
+    model(tf.random.uniform((4, 512, 512, 3)))
