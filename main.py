@@ -18,7 +18,7 @@ class Trainer:
         self.generator_optimizer = tf.keras.optimizers.Adam(1e-4)
         self.discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
 
-        self.generator = load_generator(input_shape)
+        self.generator = FPNInception(num_filters=128, num_filters_fpn=256)
         self.generator(tf.zeros((1, *input_shape)))
         self.generator.summary()
 

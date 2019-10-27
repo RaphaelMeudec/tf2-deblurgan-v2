@@ -1,3 +1,6 @@
+from functools import partial
+
+import numpy as np
 import tensorflow as tf
 
 
@@ -355,11 +358,13 @@ class FPNInception(tf.keras.Model):
             ]
         )
 
-        self.smooth_2 = tf.keras.Sequential([
-            tf.keras.layers.Conv2D(num_filters // 2, kernel_size=3, padding="same"),
-            tf.keras.layers.BatchNormalization(),
-            tf.keras.layers.ReLU()
-        ])
+        self.smooth_2 = tf.keras.Sequential(
+            [
+                tf.keras.layers.Conv2D(num_filters // 2, kernel_size=3, padding="same"),
+                tf.keras.layers.BatchNormalization(),
+                tf.keras.layers.ReLU(),
+            ]
+        )
 
         self.final_conv = tf.keras.layers.Conv2D(3, kernel_size=3, padding="same")
 
