@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from dataset import load_dataset
-from model import load_discriminator, load_generator
+from model import FPNInception
 
 print(tf.__version__)
 
