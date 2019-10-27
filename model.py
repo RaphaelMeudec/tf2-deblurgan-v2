@@ -394,6 +394,91 @@ class FPNInception(tf.keras.Model):
         return tf.clip_by_value(residual, clip_value_min=-1, clip_value_max=1)
 
 
+class NLayerDiscriminator(tf.keras.Model):
+    def __init__(self, ndf, n_layers):
+        super(NLayerDiscriminator, self).__init__()
+
+        self.kernel_size = 4
+        self.padding_size = int(np.ceil((self.kernel_size - 1) / 2))
+
+        self.initial = tf.keras.Sequential(
+            [
+                tf.keras.layers.Conv2D(
+                    filters=ndf, kernel_size=self.kernel_size, strides=2
+                ),
+                tf.keras.layers.LeakyReLU(0.2),
+            ]
+        )
+
+        self.filters_upscale_blocks = []
+        for n in range(1, n_layers):
+            nf_mult = min(2 ** n, 8)
+            self.filters_upscale_blocks.append(
+                tf.keras.Sequential(
+                    [
+                        tf.keras.layers.Conv2D(
+                            ndf * nf_mult, kernel_size=self.kernel_size, strides=2
+                        ),
+                        tf.keras.layers.BatchNormalization(),
+                        tf.keras.layers.LeakyReLU(0.2),
+                    ]
+                )
+            )
+
+        nf_mult = min(2 ** n_layers, 8)
+        self.filters_upscale_blocks.append(
+            tf.keras.Sequential(
+                [
+                    tf.keras.layers.Conv2D(
+                        ndf * nf_mult,
+                        kernel_size=self.kernel_size,
+                        strides=1,
+                        padding="valid",
+                    ),
+                    tf.keras.layers.BatchNormalization(),
+                    tf.keras.layers.LeakyReLU(0.2),
+                ]
+            )
+        )
+
+        self.final = tf.keras.Sequential(
+            [
+                tf.keras.layers.Conv2D(
+                    1, kernel_size=self.kernel_size, strides=1, padding="valid"
+                )
+            ]
+        )
+
+        self.pad = partial(tf.pad, paddings=tf.constant(
+                [
+                    [0, 0],
+                    [self.padding_size, self.padding_size],
+                    [self.padding_size, self.padding_size],
+                    [0, 0],
+                ]
+            ), mode="REFLECT")
+
+    def call(self, x):
+
+        x = self.pad(x)
+        x = self.initial(x)
+
+        for upscale_filter_block in self.filters_upscale_blocks:
+            x = self.pad(x)
+            x = upscale_filter_block(x)
+
+        x = self.pad(x)
+        x = self.final(x)
+
+        return x
+
+
 if __name__ == "__main__":
-    model = FPNInception(num_filters=128)
-    x = model(tf.random.uniform((4, 256, 256, 3)))
+    model = NLayerDiscriminator(ndf=64, n_layers=5)
+    x = model(tf.random.uniform((4, 70, 70, 3)))
+    print(x.shape)
+
+
+# if __name__ == "__main__":
+#     model = FPN(num_filters=128)
+#     x = model(tf.random.uniform((4, 256, 256, 3)))

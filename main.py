@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from dataset import load_dataset
-from model import FPNInception
+from model import FPNInception, NLayerDiscriminator
 
 print(tf.__version__)
 
@@ -22,7 +22,7 @@ class Trainer:
         self.generator(tf.zeros((1, *input_shape)))
         self.generator.summary()
 
-        self.discriminator = load_discriminator(input_shape)
+        self.discriminator = NLayerDiscriminator(ndf=64, n_layers=3)
         self.discriminator(tf.zeros((1, *input_shape)))
         self.discriminator.summary()
 
