@@ -43,6 +43,12 @@ def load_dataset(dataset_name, patch_size, batch_size, mode="train"):
                 tf.image.convert_image_dtype(blur_image, tf.float32),
             )
         )
+        .map(  # Load images between [-1, 1] instead of [0, 1]
+            lambda sharp_image, blur_image: (
+                (sharp_image - 0.5) * 2,
+                (blur_image - 0.5) * 2,
+            )
+        )
         .map(  # Select subset of the image
             lambda sharp_image, blur_image: select_patch(
                 sharp_image, blur_image, patch_size[0], patch_size[1]
@@ -65,6 +71,9 @@ if __name__ == "__main__":
     )
     for sharps, blurs in train_dataset.take(1):
         sample_sharp, sample_blur = sharps[0], blurs[0]
+
+        sample_sharp = (sample_sharp / 2) + 0.5
+        sample_blur = (sample_blur / 2) + 0.5
 
         cv2.imwrite(
             "sample_blur.png",
