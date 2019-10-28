@@ -1,6 +1,9 @@
+from functools import partial
+
 import tensorflow as tf
 
 from dataset import load_dataset
+from losses import perceptual_loss
 from model import FPNInception, NLayerDiscriminator
 
 print(tf.__version__)
@@ -10,7 +13,48 @@ PATCH_SIZE = (256, 256)
 INPUT_SHAPE = (*PATCH_SIZE, 3)
 
 
-class Trainer:
+class CNNTrainer:
+    def __init__(self, dataset, validation_dataset, input_shape):
+        self.dataset = dataset
+        self.validation_dataset = validation_dataset
+
+        self.input_shape = input_shape
+
+        self.optimizer = tf.keras.optimizers.Adam(1e-4)
+        vgg = tf.keras.applications.vgg16.VGG16(
+            include_top=False, weights="imagenet", input_shape=input_shape
+        )
+        self.loss_model = tf.keras.models.Model(
+            inputs=vgg.input, outputs=vgg.get_layer("block3_conv3").output
+        )
+
+        self.loss = partial(perceptual_loss, loss_model=self.loss_model)
+
+        self.model = FPNInception(num_filters=128, num_filters_fpn=256)
+        self.model(tf.random.uniform((4, *input_shape)))
+        self.model.summary()
+
+        self.model.compile(loss=self.loss, optimizer=self.optimizer)
+
+    def train(self, num_epochs):
+        callbacks = [
+            tf.keras.callbacks.TensorBoard(),
+            tf.keras.callbacks.ModelCheckpoint(
+                filepath="best_model.h5", monitor="val_loss", save_best_only=True
+            ),
+        ]
+
+        self.model.fit(
+            self.dataset,
+            validation_data=self.validation_dataset,
+            validation_steps=10,
+            epochs=num_epochs,
+            steps_per_epoch=10,
+            callbacks=callbacks,
+        )
+
+
+class GANTrainer:
     def __init__(self, dataset, input_shape):
         self.dataset = dataset
         self.input_shape = input_shape
@@ -76,5 +120,9 @@ if __name__ == "__main__":
         "gopro", patch_size=PATCH_SIZE, batch_size=BATCH_SIZE, mode="train"
     )
 
-    trainer = Trainer(dataset, INPUT_SHAPE)
+    validation_dataset = load_dataset(
+        "gopro", patch_size=PATCH_SIZE, batch_size=BATCH_SIZE, mode="test"
+    )
+
+    trainer = CNNTrainer(dataset, validation_dataset, INPUT_SHAPE)
     trainer.train(3)

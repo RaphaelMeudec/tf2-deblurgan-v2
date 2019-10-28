@@ -449,14 +449,18 @@ class NLayerDiscriminator(tf.keras.Model):
             ]
         )
 
-        self.pad = partial(tf.pad, paddings=tf.constant(
+        self.pad = partial(
+            tf.pad,
+            paddings=tf.constant(
                 [
                     [0, 0],
                     [self.padding_size, self.padding_size],
                     [self.padding_size, self.padding_size],
                     [0, 0],
                 ]
-            ), mode="REFLECT")
+            ),
+            mode="REFLECT",
+        )
 
     def call(self, x):
 
@@ -474,11 +478,10 @@ class NLayerDiscriminator(tf.keras.Model):
 
 
 if __name__ == "__main__":
+    model = FPNInception(num_filters=128, num_filters_fpn=256)
+    x = model(tf.random.uniform((4, 256, 256, 3)))
+    print(x.shape)
+
     model = NLayerDiscriminator(ndf=64, n_layers=5)
     x = model(tf.random.uniform((4, 70, 70, 3)))
     print(x.shape)
-
-
-# if __name__ == "__main__":
-#     model = FPN(num_filters=128)
-#     x = model(tf.random.uniform((4, 256, 256, 3)))
