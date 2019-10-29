@@ -21,21 +21,26 @@ def load_dataset(dataset_name, patch_size, batch_size, mode="train"):
     images_path = [str(path) for path in subset_dataset_path.glob("*/sharp/*.png")]
 
     dataset = tf.data.Dataset.from_tensor_slices(images_path)
+    dataset = dataset.shuffle(buffer_size=100)
+    dataset = dataset.repeat()
     dataset = (
         dataset.map(
-            lambda path: (path, tf.strings.regex_replace(path, "sharp", "blur"))
+            lambda path: (path, tf.strings.regex_replace(path, "sharp", "blur")),
+            num_parallel_calls=tf.data.experimental.AUTOTUNE,
         )
         .map(  # Read both sharp and blur files
             lambda sharp_path, blur_path: (
                 tf.io.read_file(sharp_path),
                 tf.io.read_file(blur_path),
-            )
+            ),
+            num_parallel_calls=tf.data.experimental.AUTOTUNE,
         )
         .map(  # Decode as png both sharp and blur files
             lambda sharp_file, blur_file: (
                 tf.image.decode_png(sharp_file, channels=3),
                 tf.image.decode_png(blur_file, channels=3),
-            )
+            ),
+            num_parallel_calls=tf.data.experimental.AUTOTUNE,
         )
         .map(  # Convert to float32 both sharp and blur files
             lambda sharp_image, blur_image: (
@@ -47,20 +52,20 @@ def load_dataset(dataset_name, patch_size, batch_size, mode="train"):
             lambda sharp_image, blur_image: (
                 (sharp_image - 0.5) * 2,
                 (blur_image - 0.5) * 2,
-            )
+            ),
+            num_parallel_calls=tf.data.experimental.AUTOTUNE,
         )
         .map(  # Select subset of the image
             lambda sharp_image, blur_image: select_patch(
                 sharp_image, blur_image, patch_size[0], patch_size[1]
-            )
+            ),
+            num_parallel_calls=tf.data.experimental.AUTOTUNE,
         )
     )
 
-    dataset = dataset.cache()
-    dataset = dataset.repeat()
-    dataset = dataset.shuffle(buffer_size=100)
     dataset = dataset.batch(batch_size)
-    dataset = dataset.prefetch(buffer_size=batch_size // 2)
+    dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+    dataset = dataset.cache()
 
     return dataset
 
