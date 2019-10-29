@@ -140,6 +140,9 @@ if __name__ == "__main__":
         dataset,
         validation_dataset,
         INPUT_SHAPE,
-        {"steps_per_epoch": dataset_length // BATCH_SIZE},
+        {
+            "steps_per_epoch": dataset_length // BATCH_SIZE,
+            "validation_steps": 1000 // BATCH_SIZE,
+        },
     )
     trainer.train()
