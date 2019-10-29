@@ -1,4 +1,5 @@
 from functools import partial
+from pathlib import Path
 
 import tensorflow as tf
 
@@ -14,9 +15,17 @@ INPUT_SHAPE = (*PATCH_SIZE, 3)
 
 
 class CNNTrainer:
-    def __init__(self, dataset, validation_dataset, input_shape):
+    def __init__(self, dataset, validation_dataset, input_shape, fit_method_arguments=None):
         self.dataset = dataset
         self.validation_dataset = validation_dataset
+
+        fit_method_arguments = fit_method_arguments if fit_method_arguments else {}
+        self.fit_method_arguments = {
+            "validation_steps": 1000,
+            "steps_per_epoch": 10000,
+            "epochs": 100,
+            **fit_method_arguments,
+        }
 
         self.input_shape = input_shape
 
@@ -36,7 +45,7 @@ class CNNTrainer:
 
         self.model.compile(loss=self.loss, optimizer=self.optimizer)
 
-    def train(self, num_epochs):
+    def train(self):
         callbacks = [
             tf.keras.callbacks.TensorBoard(),
             tf.keras.callbacks.ModelCheckpoint(
@@ -47,10 +56,8 @@ class CNNTrainer:
         self.model.fit(
             self.dataset,
             validation_data=self.validation_dataset,
-            validation_steps=10,
-            epochs=num_epochs,
-            steps_per_epoch=10,
             callbacks=callbacks,
+            **self.fit_method_arguments,
         )
 
 
@@ -119,10 +126,12 @@ if __name__ == "__main__":
     dataset = load_dataset(
         "gopro", patch_size=PATCH_SIZE, batch_size=BATCH_SIZE, mode="train"
     )
+    dataset_length = len([el for el in (Path("datasets") / "gopro" / "train").rglob("*/sharp/*.png")])
 
     validation_dataset = load_dataset(
         "gopro", patch_size=PATCH_SIZE, batch_size=BATCH_SIZE, mode="test"
     )
 
-    trainer = CNNTrainer(dataset, validation_dataset, INPUT_SHAPE)
-    trainer.train(3)
+
+    trainer = CNNTrainer(dataset, validation_dataset, INPUT_SHAPE, {"steps_per_epoch": dataset_length})
+    trainer.train()
