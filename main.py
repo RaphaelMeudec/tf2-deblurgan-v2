@@ -15,7 +15,9 @@ INPUT_SHAPE = (*PATCH_SIZE, 3)
 
 
 class CNNTrainer:
-    def __init__(self, dataset, validation_dataset, input_shape, fit_method_arguments=None):
+    def __init__(
+        self, dataset, validation_dataset, input_shape, fit_method_arguments=None
+    ):
         self.dataset = dataset
         self.validation_dataset = validation_dataset
 
@@ -126,12 +128,18 @@ if __name__ == "__main__":
     dataset = load_dataset(
         "gopro", patch_size=PATCH_SIZE, batch_size=BATCH_SIZE, mode="train"
     )
-    dataset_length = len([el for el in (Path("datasets") / "gopro" / "train").rglob("*/sharp/*.png")])
+    dataset_length = len(
+        [el for el in (Path("datasets") / "gopro" / "train").rglob("*/sharp/*.png")]
+    )
 
     validation_dataset = load_dataset(
         "gopro", patch_size=PATCH_SIZE, batch_size=BATCH_SIZE, mode="test"
     )
 
-
-    trainer = CNNTrainer(dataset, validation_dataset, INPUT_SHAPE, {"steps_per_epoch": dataset_length})
+    trainer = CNNTrainer(
+        dataset,
+        validation_dataset,
+        INPUT_SHAPE,
+        {"steps_per_epoch": dataset_length // BATCH_SIZE},
+    )
     trainer.train()
