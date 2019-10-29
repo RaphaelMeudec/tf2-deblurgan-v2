@@ -126,7 +126,12 @@ class GANTrainer:
 
 if __name__ == "__main__":
     dataset = load_dataset(
-        "gopro", patch_size=PATCH_SIZE, batch_size=BATCH_SIZE, mode="train"
+        "gopro",
+        patch_size=PATCH_SIZE,
+        batch_size=BATCH_SIZE,
+        mode="train",
+        shuffle=True,
+        cache=True,
     )
     dataset_length = len(
         [el for el in (Path("datasets") / "gopro" / "train").rglob("*/sharp/*.png")]

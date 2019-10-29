@@ -14,14 +14,17 @@ def get_dataset_path(dataset_name):
     return Path("datasets") / dataset_name
 
 
-def load_dataset(dataset_name, patch_size, batch_size, mode="train"):
+def load_dataset(
+    dataset_name, patch_size, batch_size, mode="train", shuffle=False, cache=False
+):
     dataset_path = get_dataset_path(dataset_name)
     subset_dataset_path = dataset_path / mode
 
     images_path = [str(path) for path in subset_dataset_path.glob("*/sharp/*.png")]
 
     dataset = tf.data.Dataset.from_tensor_slices(images_path)
-    dataset = dataset.shuffle(buffer_size=100)
+    if shuffle:
+        dataset = dataset.shuffle(buffer_size=100)
     dataset = dataset.repeat()
     dataset = (
         dataset.map(
@@ -65,7 +68,8 @@ def load_dataset(dataset_name, patch_size, batch_size, mode="train"):
 
     dataset = dataset.batch(batch_size)
     dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-    dataset = dataset.cache()
+    if cache:
+        dataset = dataset.cache()
 
     return dataset
 
