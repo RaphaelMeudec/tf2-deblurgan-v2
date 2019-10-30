@@ -24,8 +24,7 @@ def load_dataset(
 
     dataset = tf.data.Dataset.from_tensor_slices(images_path)
     if shuffle:
-        dataset = dataset.shuffle(buffer_size=100)
-    dataset = dataset.repeat()
+        dataset = dataset.shuffle(buffer_size=tf.data.experimental.AUTOTUNE)
     dataset = (
         dataset.map(
             lambda path: (path, tf.strings.regex_replace(path, "sharp", "blur")),
@@ -45,7 +44,11 @@ def load_dataset(
             ),
             num_parallel_calls=tf.data.experimental.AUTOTUNE,
         )
-        .map(  # Convert to float32 both sharp and blur files
+    )
+    if cache:
+        dataset = dataset.cache()
+    dataset = (
+        dataset.map(  # Convert to float32 both sharp and blur files
             lambda sharp_image, blur_image: (
                 tf.image.convert_image_dtype(sharp_image, tf.float32),
                 tf.image.convert_image_dtype(blur_image, tf.float32),
@@ -67,9 +70,8 @@ def load_dataset(
     )
 
     dataset = dataset.batch(batch_size)
+    dataset = dataset.repeat()
     dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-    if cache:
-        dataset = dataset.cache()
 
     return dataset
 

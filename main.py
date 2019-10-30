@@ -49,7 +49,7 @@ class CNNTrainer:
 
     def train(self):
         callbacks = [
-            tf.keras.callbacks.TensorBoard(),
+            tf.keras.callbacks.TensorBoard(profile_batch=3),
             tf.keras.callbacks.ModelCheckpoint(
                 filepath="best_model.h5", monitor="val_loss", save_best_only=True
             ),
@@ -61,6 +61,23 @@ class CNNTrainer:
             callbacks=callbacks,
             **self.fit_method_arguments,
         )
+
+        # for index, (x, y) in enumerate(self.dataset):
+        #     loss = self.training_step(x, y)
+        #
+        #     if index > 100:
+        #         break
+
+    @tf.function
+    def training_step(self, x, y):
+        with tf.GradientTape() as tape:
+            deblurred = self.model(x)
+            loss = perceptual_loss(deblurred, y, sample_weight=None, loss_model=self.loss_model)
+
+        gradients = tape.gradient(loss, self.model.trainable_weights)
+        self.optimizer.apply_gradients(zip(gradients, self.model.trainable_weights))
+
+        return loss
 
 
 class GANTrainer:
@@ -141,13 +158,18 @@ if __name__ == "__main__":
         "gopro", patch_size=PATCH_SIZE, batch_size=BATCH_SIZE, mode="test"
     )
 
+    tf.summary.trace_on(profiler=True)
+
     trainer = CNNTrainer(
         dataset,
         validation_dataset,
         INPUT_SHAPE,
         {
-            "steps_per_epoch": dataset_length // BATCH_SIZE,
-            "validation_steps": 1000 // BATCH_SIZE,
+            "steps_per_epoch": 100,
+            "validation_steps": 10,
+            "epochs": 1
         },
     )
     trainer.train()
+
+    tf.summary.trace_export(name="cnntrainer", profiler_outdir="./profiling")
