@@ -24,7 +24,7 @@ def load_dataset(
 
     dataset = tf.data.Dataset.from_tensor_slices(images_path)
     if shuffle:
-        dataset = dataset.shuffle(buffer_size=tf.data.experimental.AUTOTUNE)
+        dataset = dataset.shuffle(buffer_size=200)
     dataset = (
         dataset.map(
             lambda path: (path, tf.strings.regex_replace(path, "sharp", "blur")),
