@@ -49,7 +49,7 @@ class CNNTrainer:
 
     def train(self):
         callbacks = [
-            tf.keras.callbacks.TensorBoard(),
+            tf.keras.callbacks.TensorBoard(profile_batch=3),
             tf.keras.callbacks.ModelCheckpoint(
                 filepath="best_model.h5", monitor="val_loss", save_best_only=True
             ),
@@ -64,6 +64,7 @@ class CNNTrainer:
 
 
 class GANTrainer:
+    # TODO: Finish GAN Trainer
     def __init__(self, dataset, input_shape):
         self.dataset = dataset
         self.input_shape = input_shape
@@ -125,6 +126,7 @@ class GANTrainer:
 
 
 if __name__ == "__main__":
+    # TODO: Migrate to some config files
     dataset = IndependantDataLoader().load(
         "gopro",
         patch_size=PATCH_SIZE,
@@ -151,6 +153,7 @@ if __name__ == "__main__":
         {
             "steps_per_epoch": dataset_length // BATCH_SIZE,
             "validation_steps": 1000 // BATCH_SIZE,
+            "epochs": 1000,
         },
     )
     trainer.train()
