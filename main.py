@@ -3,7 +3,7 @@ from pathlib import Path
 
 import tensorflow as tf
 
-from dataset import load_dataset
+from dataset import IndependantDataLoader
 from losses import perceptual_loss
 from model import FPNInception, NLayerDiscriminator
 
@@ -125,20 +125,23 @@ class GANTrainer:
 
 
 if __name__ == "__main__":
-    dataset = load_dataset(
+    dataset = IndependantDataLoader().load(
         "gopro",
         patch_size=PATCH_SIZE,
         batch_size=BATCH_SIZE,
         mode="train",
         shuffle=True,
-        cache=True,
     )
     dataset_length = len(
         [el for el in (Path("datasets") / "gopro" / "train").rglob("*/sharp/*.png")]
     )
 
-    validation_dataset = load_dataset(
-        "gopro", patch_size=PATCH_SIZE, batch_size=BATCH_SIZE, mode="test"
+    validation_dataset = IndependantDataLoader().load(
+        "gopro",
+        patch_size=PATCH_SIZE,
+        batch_size=BATCH_SIZE,
+        mode="test",
+        shuffle=False,
     )
 
     trainer = CNNTrainer(

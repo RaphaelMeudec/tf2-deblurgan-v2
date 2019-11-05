@@ -14,68 +14,61 @@ def get_dataset_path(dataset_name):
     return Path("datasets") / dataset_name
 
 
-def load_dataset(
-    dataset_name, patch_size, batch_size, mode="train", shuffle=False, cache=False
-):
-    dataset_path = get_dataset_path(dataset_name)
-    subset_dataset_path = dataset_path / mode
-
-    images_path = [str(path) for path in subset_dataset_path.glob("*/sharp/*.png")]
-
-    dataset = tf.data.Dataset.from_tensor_slices(images_path)
-    if shuffle:
-        dataset = dataset.shuffle(buffer_size=100)
-    dataset = dataset.repeat()
-    dataset = (
-        dataset.map(
-            lambda path: (path, tf.strings.regex_replace(path, "sharp", "blur")),
-            num_parallel_calls=tf.data.experimental.AUTOTUNE,
-        )
-        .map(  # Read both sharp and blur files
-            lambda sharp_path, blur_path: (
-                tf.io.read_file(sharp_path),
-                tf.io.read_file(blur_path),
-            ),
-            num_parallel_calls=tf.data.experimental.AUTOTUNE,
-        )
-        .map(  # Decode as png both sharp and blur files
-            lambda sharp_file, blur_file: (
-                tf.image.decode_png(sharp_file, channels=3),
-                tf.image.decode_png(blur_file, channels=3),
-            ),
-            num_parallel_calls=tf.data.experimental.AUTOTUNE,
-        )
-        .map(  # Convert to float32 both sharp and blur files
-            lambda sharp_image, blur_image: (
-                tf.image.convert_image_dtype(sharp_image, tf.float32),
-                tf.image.convert_image_dtype(blur_image, tf.float32),
+class IndependantDataLoader:
+    def image_dataset(self, images_paths):
+        dataset = tf.data.Dataset.from_tensor_slices(images_paths)
+        dataset = (
+            dataset.map(
+                tf.io.read_file, num_parallel_calls=tf.data.experimental.AUTOTUNE
+            )
+            .map(tf.image.decode_png, num_parallel_calls=tf.data.experimental.AUTOTUNE)
+            .map(
+                lambda x: tf.image.convert_image_dtype(x, tf.float32),
+                num_parallel_calls=tf.data.experimental.AUTOTUNE,
+            )
+            .map(
+                lambda x: (x - 0.5) * 2,
+                num_parallel_calls=tf.data.experimental.AUTOTUNE,
             )
         )
-        .map(  # Load images between [-1, 1] instead of [0, 1]
-            lambda sharp_image, blur_image: (
-                (sharp_image - 0.5) * 2,
-                (blur_image - 0.5) * 2,
-            ),
-            num_parallel_calls=tf.data.experimental.AUTOTUNE,
-        )
-        .map(  # Select subset of the image
+
+        return dataset
+
+    def load(
+        self,
+        dataset_name,
+        mode="train",
+        batch_size=4,
+        patch_size=(256, 256),
+        shuffle=False,
+    ):
+        dataset_path = get_dataset_path(dataset_name) / mode
+        sharp_images_path = [str(path) for path in dataset_path.glob("*/sharp/*.png")]
+        blur_images_path = [path.replace("sharp", "blur") for path in sharp_images_path]
+
+        sharp_dataset = self.image_dataset(sharp_images_path).cache()
+        blur_dataset = self.image_dataset(blur_images_path).cache()
+
+        dataset = tf.data.Dataset.zip((sharp_dataset, blur_dataset))
+        if shuffle:
+            dataset = dataset.shuffle()
+
+        dataset = dataset.map(
             lambda sharp_image, blur_image: select_patch(
                 sharp_image, blur_image, patch_size[0], patch_size[1]
             ),
             num_parallel_calls=tf.data.experimental.AUTOTUNE,
         )
-    )
 
-    dataset = dataset.batch(batch_size)
-    dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-    if cache:
-        dataset = dataset.cache()
+        dataset = dataset.batch(batch_size)
+        dataset = dataset.repeat()
+        dataset = dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
 
-    return dataset
+        return dataset
 
 
 if __name__ == "__main__":
-    train_dataset = load_dataset(
+    train_dataset = IndependantDataLoader().load(
         "gopro", patch_size=(128, 128), batch_size=16, mode="train"
     )
     for sharps, blurs in train_dataset.take(1):

@@ -56,4 +56,3 @@ cv2.imwrite(
         (deprocess_image(blur_image) * 255).numpy().astype("uint8"), cv2.COLOR_BGR2RGB
     ),
 )
-
