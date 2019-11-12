@@ -128,8 +128,12 @@ class GANTrainer:
 
 @click.command()
 @click.option("--epochs", default=2, help="Number of epochs to perform", type=int)
-@click.option("--steps_per_epoch", default=None, help="Number of steps per epoch", type=int)
-@click.option("--validation_steps", default=None, help="Number of validation steps", type=int)
+@click.option(
+    "--steps_per_epoch", default=None, help="Number of steps per epoch", type=int
+)
+@click.option(
+    "--validation_steps", default=None, help="Number of validation steps", type=int
+)
 @click.option("--batch_size", default=BATCH_SIZE, help="Size of batch", type=int)
 def train_command(epochs, steps_per_epoch, validation_steps, batch_size):
     dataset = IndependantDataLoader().load(
@@ -138,6 +142,7 @@ def train_command(epochs, steps_per_epoch, validation_steps, batch_size):
         batch_size=batch_size,
         mode="train",
         shuffle=True,
+        cache=True,
     )
     dataset_length = len(
         [el for el in (Path("datasets") / "gopro" / "train").rglob("*/sharp/*.png")]
@@ -149,18 +154,23 @@ def train_command(epochs, steps_per_epoch, validation_steps, batch_size):
         batch_size=batch_size,
         mode="test",
         shuffle=False,
+        cache=False,
     )
-    validation_dataset_length = len([
-        _ for _ in (Path("datasets") / "gopro" / "test").rglob("*/sharp/*.png")
-    ])
+    validation_dataset_length = len(
+        [_ for _ in (Path("datasets") / "gopro" / "test").rglob("*/sharp/*.png")]
+    )
 
     trainer = CNNTrainer(
         dataset,
         validation_dataset,
         INPUT_SHAPE,
         {
-            "steps_per_epoch": steps_per_epoch if steps_per_epoch else dataset_length // batch_size,
-            "validation_steps": validation_steps if validation_steps else validation_dataset_length,
+            "steps_per_epoch": (
+                steps_per_epoch if steps_per_epoch else dataset_length // batch_size
+            ),
+            "validation_steps": (
+                validation_steps if validation_steps else validation_dataset_length
+            ),
             "epochs": epochs,
         },
     )

@@ -41,6 +41,7 @@ class IndependantDataLoader:
         batch_size=4,
         patch_size=(256, 256),
         shuffle=False,
+        cache=False,
     ):
         dataset_path = get_dataset_path(dataset_name) / mode
         sharp_images_path = [str(path) for path in dataset_path.glob("*/sharp/*.png")]
@@ -49,7 +50,9 @@ class IndependantDataLoader:
         sharp_dataset = self.image_dataset(sharp_images_path)
         blur_dataset = self.image_dataset(blur_images_path)
 
-        dataset = tf.data.Dataset.zip((sharp_dataset, blur_dataset)).cache()
+        dataset = tf.data.Dataset.zip((sharp_dataset, blur_dataset))
+        if cache:
+            dataset = dataset.cache()
         if shuffle:
             dataset = dataset.shuffle(buffer_size=200)
 
