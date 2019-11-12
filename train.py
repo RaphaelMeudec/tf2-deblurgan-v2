@@ -142,8 +142,9 @@ def train_command(epochs, steps_per_epoch, validation_steps, batch_size):
         batch_size=batch_size,
         mode="train",
         shuffle=True,
-        cache=True,
     )
+    # Call dataset to populate cache
+    for _ in dataset: pass
     dataset_length = len(
         [el for el in (Path("datasets") / "gopro" / "train").rglob("*/sharp/*.png")]
     )
@@ -154,8 +155,9 @@ def train_command(epochs, steps_per_epoch, validation_steps, batch_size):
         batch_size=batch_size,
         mode="test",
         shuffle=False,
-        cache=False,
     )
+    # Call dataset to populate cache
+    for _ in validation_dataset: pass
     validation_dataset_length = len(
         [_ for _ in (Path("datasets") / "gopro" / "test").rglob("*/sharp/*.png")]
     )
